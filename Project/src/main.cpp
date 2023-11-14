@@ -5,6 +5,7 @@
 #include <DallasTemperature.h>
 #include <U8g2lib.h>
 #include <Wire.h>
+#include <EasyBuzzer.h>
 #define ROW_NUM 4
 #define COLUMN_NUM 3
 #define SENSOR_NUM 2
@@ -24,6 +25,8 @@ Keypad keypad = Keypad(makeKeymap(keys),pin_rows,pin_column,ROW_NUM,COLUMN_NUM);
 //Motors
 int motor1[ACTUATOR_NUM] = {25, 26};
 int motor2[ACTUATOR_NUM] = {27, 14};
+
+//Buzzer
 const int buzzer = 33;
 
 //Movement sensor
@@ -36,8 +39,8 @@ OneWire oneWire(temp);
 DallasTemperature DS18B20(&oneWire);
 float current_temp;
 
-//Light sensor
-BH1750 light_sensor;
+// //Light sensor
+// BH1750 light_sensor;
 
 //Dimmers
 const int zero_cross = 1;
@@ -60,13 +63,13 @@ void IRAM_ATTR isr() {
 void setup() {
   Serial.begin(9600);
   DS18B20.begin();
-  char key = keypad.getKey();
-  if (key) {
-    Serial.println(key);
-  }
+  EasyBuzzer.setPin(buzzer);
 }
 
 void loop() {
   read_temp();
-  
+  char key = keypad.getKey();
+  if (key) {
+    Serial.println(key);
+  }
 }
