@@ -74,6 +74,16 @@ void read_key() {
   }
 }
 
+void access_granted() {
+  EasyBuzzer.beep(beep_success[0],beep_success[1],beep_success[2],beep_success[3],beep_success[4],beep_success[5]);
+  EasyBuzzer.update();
+}
+
+void access_denied() {
+  EasyBuzzer.beep(beep_failure[0],beep_failure[1],beep_failure[2],beep_failure[3],beep_failure[4],beep_failure[5]);
+  EasyBuzzer.update();
+}
+
 void IRAM_ATTR isr() {
 
 }
@@ -108,5 +118,7 @@ void setup() {
 
 void loop() {
   //read_temp();
+  access_denied();
   read_key();
+  read_distance();
 }
