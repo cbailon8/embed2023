@@ -24,13 +24,17 @@ char keys[ROW_NUM][COLUMN_NUM] = {
 byte pin_rows[ROW_NUM] = {16, 4, 0, 2};
 byte pin_column[COLUMN_NUM] = {15, 8, 7, 6};
 Keypad keypad = Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
+char input_pwd[];
 
 // Motors
 int motor1[ACTUATOR_NUM] = {25, 26};
+bool state_motor1 = false;
 int motor2[ACTUATOR_NUM] = {27, 14};
+bool state_motor2 = false;
 
 // Buzzer
 const int buzzer = 33;
+bool state_alarm = false;
 unsigned int beep_success[6] = {1000, 50, 100, 2, 500, 10};
 unsigned int beep_failure[6] = {500, 50, 100, 2, 500, 10};
 unsigned int frequency = 1000;
@@ -59,7 +63,9 @@ float current_temp;
 // Dimmers
 const int zero_cross = 1;
 const int dimmer1_pwm = 19;
+bool state_dimm1 = false;
 const int dimmer2_pwm = 18;
+bool state_dimm2 = false;
 
 // Oled
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
@@ -113,6 +119,20 @@ void ftoa(float n, char *res, int afterpoint)
   }
 }
 
+void check_pwd()
+{
+  char pwd[] = "";
+  int comp = strcmp(pwd, input_pwd);
+  if (comp == 0)
+  {
+    access_granted();
+  }
+  else
+  {
+    access_denied();
+  }
+}
+
 void read_temp()
 {
   DS18B20.requestTemperatures();
@@ -122,10 +142,15 @@ void read_temp()
 
 void read_key()
 {
+  int keys_pressed = 0;
   char key = keypad.getKey();
   if (key)
   {
     Serial.println(key);
+    while (keys_pressed < 8)
+    {
+      input_pwd[keys_pressed++] = key;
+    }
   }
 }
 
@@ -139,6 +164,7 @@ void access_denied()
 {
   EasyBuzzer.beep(beep_failure[0], beep_failure[1], beep_failure[2], beep_failure[3], beep_failure[4], beep_failure[5]);
   EasyBuzzer.update();
+  state_alarm = true;
 }
 
 void IRAM_ATTR isr()
@@ -158,17 +184,39 @@ void read_distance()
   distance_cm_2 = 0.017 * duration_us_2;
   Serial.print(distance_cm_1);
   Serial.print(distance_cm_2);
-  ftoa(distance_cm_1,dis_1,2);
-  ftoa(distance_cm_2,dis_2,2);
+  ftoa(distance_cm_1, dis_1, 2);
+  ftoa(distance_cm_2, dis_2, 2);
   delay(500);
 }
 
 void oled()
 {
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-  u8g2.drawStr(0, 10, dis_1);
-  u8g2.drawStr(0, 20, dis_2);
+  u8g2.setFont(u8g2_font_tiny5_tf);
+  u8g2.drawStr(0, 6, "Distancia:");
+  u8g2.drawStr(20, 6, dis_1);
+  u8g2.drawStr(0, 12, "Distancia:");
+  u8g2.drawStr(20, 12, dis_2);
+  if (state_alarm)
+  {
+    u8g2.drawStr(0, 18, "¡Alarma activada!");
+  }
+  if (state_motor1)
+  {
+    u8g2.drawStr(0, 24, "Puerta: \"ON\"");
+  }
+  else
+  {
+    u8g2.drawStr(0, 24, "Puerta: \"OFF\"");
+  }
+  if (state_motor2)
+  {
+    u8g2.drawStr(0, 30, "Persiana: \"ON\"");
+  }
+  else
+  {
+    u8g2.drawStr(0, 24, "Persiana: \"OFF\"");
+  }
   u8g2.sendBuffer();
   delay(500);
 }
