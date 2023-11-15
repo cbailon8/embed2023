@@ -24,7 +24,7 @@ char keys[ROW_NUM][COLUMN_NUM] = {
 byte pin_rows[ROW_NUM] = {16, 4, 0, 2};
 byte pin_column[COLUMN_NUM] = {15, 8, 7, 6};
 Keypad keypad = Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
-char input_pwd[];
+char input_pwd[8];
 
 // Motors
 int motor1[ACTUATOR_NUM] = {25, 26};
@@ -119,20 +119,6 @@ void ftoa(float n, char *res, int afterpoint)
   }
 }
 
-void check_pwd()
-{
-  char pwd[] = "";
-  int comp = strcmp(pwd, input_pwd);
-  if (comp == 0)
-  {
-    access_granted();
-  }
-  else
-  {
-    access_denied();
-  }
-}
-
 void read_temp()
 {
   DS18B20.requestTemperatures();
@@ -219,6 +205,20 @@ void oled()
   }
   u8g2.sendBuffer();
   delay(500);
+}
+
+void check_pwd()
+{
+  char pwd[] = "";
+  int comp = strcmp(pwd, input_pwd);
+  if (comp == 0)
+  {
+    access_granted();
+  }
+  else
+  {
+    access_denied();
+  }
 }
 
 void setup()
