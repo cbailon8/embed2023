@@ -6,14 +6,16 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 #include <EasyBuzzer.h>
-#include <math.h>
 #include <stdio.h>
+#include <eeprom.cpp>
+#include <numtostr.cpp>
 #define ROW_NUM 4
 #define COLUMN_NUM 4
 #define SENSOR_NUM 2
 #define ACTUATOR_NUM 2
 #define SCL 22
 #define SDA 21
+#define PWD_ADDR 16
 
 // Keyboard
 char keys[ROW_NUM][COLUMN_NUM] = {
@@ -71,54 +73,6 @@ bool state_dimm2 = false;
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
 
 // Functions
-void reverse(char *str, int len)
-{
-  int i = 0, j = len - 1, temp;
-  while (i < j)
-  {
-    temp = str[i];
-    str[i] = str[j];
-    str[j] = temp;
-    i++;
-    j--;
-  }
-}
-
-int intToStr(int x, char str[], int d)
-{
-  int i = 0;
-  while (x)
-  {
-    str[i++] = (x % 10) + '0';
-    x = x / 10;
-  }
-
-  while (i < d)
-    str[i++] = '0';
-
-  reverse(str, i);
-  str[i] = '\0';
-  return i;
-}
-
-void ftoa(float n, char *res, int afterpoint)
-{
-  int ipart = (int)n;
-
-  float fpart = n - (float)ipart;
-
-  int i = intToStr(ipart, res, 0);
-
-  if (afterpoint != 0)
-  {
-    res[i] = '.';
-
-    fpart = fpart * pow(10, afterpoint);
-
-    intToStr((int)fpart, res + i + 1, afterpoint);
-  }
-}
-
 void read_temp()
 {
   DS18B20.requestTemperatures();
@@ -137,6 +91,7 @@ void read_key()
     {
       input_pwd[keys_pressed++] = key;
     }
+    keys_pressed = 0;
   }
 }
 
@@ -240,8 +195,8 @@ void setup()
 void loop()
 {
   // read_temp();
-  access_denied();
-  read_key();
-  read_distance();
-  oled();
+  //read_key();
+  //read_distance();
+  //oled();
+  writeString("ABC123",PWD_ADDR);
 }
