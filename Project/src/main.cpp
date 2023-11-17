@@ -7,8 +7,8 @@
 #include <Wire.h>
 #include <EasyBuzzer.h>
 #include <stdio.h>
-#include <eeprom.cpp>
-#include <numtostr.cpp>
+#include "eeprom.h"
+#include "numtostr.h"
 #define ROW_NUM 4
 #define COLUMN_NUM 4
 #define SENSOR_NUM 2
