@@ -7,7 +7,7 @@
 #include <Wire.h>
 #include <EasyBuzzer.h>
 #include <stdio.h>
-#include "eeprom.h"
+#include "eepromfn.h"
 #include "numtostr.h"
 #define ROW_NUM 4
 #define COLUMN_NUM 4
@@ -198,5 +198,5 @@ void loop()
   //read_key();
   //read_distance();
   //oled();
-  writeString("ABC123",PWD_ADDR);
+  writeStringEEPROM("ABC123",PWD_ADDR);
 }

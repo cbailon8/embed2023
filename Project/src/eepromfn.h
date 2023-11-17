@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
-void writeString(String str, int addr) {
+void writeStringEEPROM(String str, int addr) {
   int str_length = str.length();
   for (int i = 0; i < str_length; i++) {
     EEPROM.write(addr + i, str[i]);
@@ -10,7 +10,7 @@ void writeString(String str, int addr) {
   EEPROM.commit();
 }
 
-String readString(int addr) {
+String readStringEEPROM(int addr) {
   String str = "";
   char character = EEPROM.read(addr);
   int i = 0;
