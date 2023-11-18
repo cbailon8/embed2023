@@ -23,19 +23,19 @@ char keys[ROW_NUM][COLUMN_NUM] = {
     {'4', '5', '6', 'B'},
     {'7', '8', '9', 'C'},
     {'*', '0', '#', 'D'}};
-byte pin_rows[ROW_NUM] = {16, 4, 0, 2};
-byte pin_column[COLUMN_NUM] = {15, 8, 7, 6};
+byte pin_rows[ROW_NUM] = {36, 39, 34, 35};
+byte pin_column[COLUMN_NUM] = {32, 33, 25, 26};
 Keypad keypad = Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
 char input_pwd[8];
 
 // Motors
-int motor1[ACTUATOR_NUM] = {25, 26};
+int motor1[ACTUATOR_NUM] = {13, 9};
 bool state_motor1 = false;
-int motor2[ACTUATOR_NUM] = {27, 14};
+int motor2[ACTUATOR_NUM] = {10, 11};
 bool state_motor2 = false;
 
 // Buzzer
-const int buzzer = 33;
+const int buzzer = 12;
 bool state_alarm = false;
 unsigned int beep_success[6] = {1000, 50, 100, 2, 500, 10};
 unsigned int beep_failure[6] = {500, 50, 100, 2, 500, 10};
@@ -47,14 +47,14 @@ unsigned int pauseDuration = 500;
 unsigned int cycles = 10;
 
 // Movement sensor
-int ultrasonic_1[SENSOR_NUM] = {36, 39};
-int ultrasonic_2[SENSOR_NUM] = {34, 35};
+int ultrasonic_1[SENSOR_NUM] = {15, 8};
+int ultrasonic_2[SENSOR_NUM] = {7, 6};
 float duration_us_1, distance_cm_1;
 float duration_us_2, distance_cm_2;
 char dis_1[10], dis_2[10];
 
 // Temperature sensor
-const int temp = 32;
+const int temp = 14;
 OneWire oneWire(temp);
 DallasTemperature DS18B20(&oneWire);
 float current_temp;
