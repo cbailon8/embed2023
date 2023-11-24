@@ -7,6 +7,7 @@
 #include <Wire.h>
 #include <EasyBuzzer.h>
 #include <stdio.h>
+#include <RBDDimmer.h>
 #include "eepromfn.h"
 #include "numtostr.h"
 #define ROW_NUM 4
@@ -49,8 +50,8 @@ unsigned int cycles = 10;
 // Movement sensor
 int ultrasonic_1[SENSOR_NUM] = {15, 8};
 int ultrasonic_2[SENSOR_NUM] = {7, 6};
-float duration_us_1, distance_cm_1;
-float duration_us_2, distance_cm_2;
+float duration_us_1, duration_us_2;
+float distance_cm_1, distance_cm_2 = 0;
 char dis_1[10], dis_2[10];
 
 // Temperature sensor
@@ -68,6 +69,8 @@ const int dimmer1_pwm = 19;
 bool state_dimm1 = false;
 const int dimmer2_pwm = 18;
 bool state_dimm2 = false;
+dimmerLamp dimm1(dimmer1_pwm,zero_cross);
+dimmerLamp dimm2(dimmer2_pwm,zero_cross);
 
 // Oled
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
@@ -77,6 +80,16 @@ void read_temp()
 {
   DS18B20.requestTemperatures();
   current_temp = DS18B20.getTempCByIndex(0);
+  if (current_temp > 25) {
+    digitalWrite(27,HIGH);
+  } else if (current_temp < 25) {
+    digitalWrite(27,LOW);
+    digitalWrite(motor1[1],HIGH);
+    state_motor1 = true;
+    delay(2000);
+    digitalWrite(motor1[1],LOW);
+    state_motor1 = true;
+  }
   delay(500);
 }
 
@@ -110,6 +123,24 @@ void access_denied()
 
 void IRAM_ATTR isr()
 {
+  digitalWrite(motor1[0],HIGH);
+  state_motor1 = true;
+  delay(2000);
+  digitalWrite(motor1[0],LOW);
+  state_motor1 = true;
+}
+
+void manage_lights(){
+  if (distance_cm_1 < 10){
+    dimm1.setPower(80);
+  } else {
+    dimm1.setPower(0);
+  }
+  if (distance_cm_2 < 10){
+    dimm2.setPower(80);
+  } else {
+    dimm2.setPower(0);
+  }
 }
 
 void read_distance()
@@ -190,6 +221,11 @@ void setup()
   // DS18B20.begin();
   // Buzzer
   EasyBuzzer.setPin(buzzer);
+  //Blinds
+  attachInterrupt(27,isr,RISING);
+  //Dimmers
+  dimm1.begin(NORMAL_MODE,ON);
+  dimm2.begin(NORMAL_MODE,ON);
 }
 
 void loop()
@@ -197,6 +233,7 @@ void loop()
   // read_temp();
   //read_key();
   //read_distance();
+  //manage_lights();
   //oled();
   writeStringEEPROM("ABC123",PWD_ADDR);
 }
