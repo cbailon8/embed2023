@@ -10,6 +10,10 @@
 #include <RBDDimmer.h>
 #include "eepromfn.h"
 #include "numtostr.h"
+#define PRO_CPU 0
+#define APP_CPU 1
+#define RAM 4096
+#define NOAFF_CPU tskNO_AFFINITY
 #define ROW_NUM 4
 #define COLUMN_NUM 4
 #define SENSOR_NUM 2
@@ -17,6 +21,12 @@
 #define SCL 22
 #define SDA 21
 #define PWD_ADDR 16
+
+// Tasks
+void TaskLights(void *pvParameters);
+void TaskTemp(void *pvParameters);
+void TaskAccess(void *pvParameters);
+void TaskScreen(void *pvParameters);
 
 // Keyboard
 char keys[ROW_NUM][COLUMN_NUM] = {
@@ -69,8 +79,8 @@ const int dimmer1_pwm = 19;
 bool state_dimm1 = false;
 const int dimmer2_pwm = 18;
 bool state_dimm2 = false;
-dimmerLamp dimm1(dimmer1_pwm,zero_cross);
-dimmerLamp dimm2(dimmer2_pwm,zero_cross);
+dimmerLamp dimm1(dimmer1_pwm, zero_cross);
+dimmerLamp dimm2(dimmer2_pwm, zero_cross);
 
 // Oled
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
@@ -80,17 +90,24 @@ void read_temp()
 {
   DS18B20.requestTemperatures();
   current_temp = DS18B20.getTempCByIndex(0);
-  if (current_temp > 25) {
-    digitalWrite(27,HIGH);
-  } else if (current_temp < 25) {
-    digitalWrite(27,LOW);
-    digitalWrite(motor1[1],HIGH);
+  Serial.print(current_temp);
+  if (current_temp > 25)
+  {
+    digitalWrite(motor1[0], HIGH);
     state_motor1 = true;
-    delay(2000);
-    digitalWrite(motor1[1],LOW);
+    vTaskDelay(5000);
+    digitalWrite(motor1[0], LOW);
     state_motor1 = true;
   }
-  delay(500);
+  else if (current_temp < 25)
+  {
+    digitalWrite(motor1[1], HIGH);
+    state_motor1 = true;
+    vTaskDelay(5000);
+    digitalWrite(motor1[1], LOW);
+    state_motor1 = true;
+  }
+  vTaskDelay(500);
 }
 
 void read_key()
@@ -121,24 +138,22 @@ void access_denied()
   state_alarm = true;
 }
 
-void IRAM_ATTR isr()
+void manage_lights()
 {
-  digitalWrite(motor1[0],HIGH);
-  state_motor1 = true;
-  delay(2000);
-  digitalWrite(motor1[0],LOW);
-  state_motor1 = true;
-}
-
-void manage_lights(){
-  if (distance_cm_1 < 10){
+  if (distance_cm_1 < 10)
+  {
     dimm1.setPower(80);
-  } else {
+  }
+  else
+  {
     dimm1.setPower(0);
   }
-  if (distance_cm_2 < 10){
+  if (distance_cm_2 < 10)
+  {
     dimm2.setPower(80);
-  } else {
+  }
+  else
+  {
     dimm2.setPower(0);
   }
 }
@@ -147,7 +162,7 @@ void read_distance()
 {
   digitalWrite(ultrasonic_1[0], HIGH);
   digitalWrite(ultrasonic_2[0], HIGH);
-  delayMicroseconds(10);
+  vTaskDelay(1);
   digitalWrite(ultrasonic_1[0], LOW);
   digitalWrite(ultrasonic_2[0], LOW);
   duration_us_1 = pulseIn(ultrasonic_1[1], HIGH);
@@ -158,7 +173,7 @@ void read_distance()
   Serial.print(distance_cm_2);
   ftoa(distance_cm_1, dis_1, 2);
   ftoa(distance_cm_2, dis_2, 2);
-  delay(500);
+  vTaskDelay(500);
 }
 
 void oled()
@@ -190,7 +205,7 @@ void oled()
     u8g2.drawStr(0, 24, "Persiana: \"OFF\"");
   }
   u8g2.sendBuffer();
-  delay(500);
+  vTaskDelay(500);
 }
 
 void check_pwd()
@@ -209,31 +224,49 @@ void check_pwd()
 
 void setup()
 {
+  writeStringEEPROM("ABC123", PWD_ADDR);
+  xTaskCreatePinnedToCore(TaskAccess, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskLights, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskTemp, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskScreen, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
+}
+
+void TaskAccess(void *pvParameters)
+{
+  (void)pvParameters;
   Serial.begin(9600);
-  // Oled
-  u8g2.begin();
-  // Ultrasonic sensors
+  read_key();
+  check_pwd();
+  EasyBuzzer.setPin(buzzer);
+}
+
+void TaskTemp(void *pvParameters)
+{
+  (void)pvParameters;
+  Serial.begin(9600);
+  // DS18B20.begin();
+  // read_temp();
+}
+
+void TaskLights(void *pvParameters)
+{
+  (void)pvParameters;
+  Serial.begin(9600);
   pinMode(ultrasonic_1[0], OUTPUT);
   pinMode(ultrasonic_1[1], INPUT);
   pinMode(ultrasonic_2[0], OUTPUT);
   pinMode(ultrasonic_2[1], INPUT);
-  // Temp
-  // DS18B20.begin();
-  // Buzzer
-  EasyBuzzer.setPin(buzzer);
-  //Blinds
-  attachInterrupt(27,isr,RISING);
-  //Dimmers
-  dimm1.begin(NORMAL_MODE,ON);
-  dimm2.begin(NORMAL_MODE,ON);
+  read_distance();
+  manage_lights();
+}
+
+void TaskScreen(void *pvParameters)
+{
+  (void)pvParameters;
+  // u8g2.begin();
+  // oled();
 }
 
 void loop()
 {
-  // read_temp();
-  //read_key();
-  //read_distance();
-  //manage_lights();
-  //oled();
-  writeStringEEPROM("ABC123",PWD_ADDR);
 }
