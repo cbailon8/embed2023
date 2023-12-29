@@ -10,6 +10,7 @@
 #include <RBDDimmer.h>
 #include "eepromfn.h"
 #include "numtostr.h"
+#include "apwifiesp32.h"
 #define PRO_CPU 0
 #define APP_CPU 1
 #define RAM 4096
@@ -22,11 +23,17 @@
 #define SDA 21
 #define PWD_ADDR 16
 
+// Connection
+String ssid = "12345678";
+String password = "12345678";
+
 // Tasks
 void TaskLights(void *pvParameters);
 void TaskTemp(void *pvParameters);
 void TaskAccess(void *pvParameters);
 void TaskScreen(void *pvParameters);
+void TaskAccessPoint(void *pvParameters);
+void TaskSendParams(void *pvParameters);
 
 // Keyboard
 char keys[ROW_NUM][COLUMN_NUM] = {
@@ -224,11 +231,15 @@ void check_pwd()
 
 void setup()
 {
+  EEPROM.begin(512);
   writeStringEEPROM("ABC123", PWD_ADDR);
+  initAP(ssid.c_str(), password.c_str());
   xTaskCreatePinnedToCore(TaskAccess, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
-  xTaskCreatePinnedToCore(TaskLights, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
-  xTaskCreatePinnedToCore(TaskTemp, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
-  xTaskCreatePinnedToCore(TaskScreen, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskLights, "TaskLights", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskTemp, "TaskTemp", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskScreen, "TaskScreen", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskAccessPoint, "TaskAccessPoint", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskSendParams, "TaskSendParams", RAM, NULL, 1, NULL, APP_CPU);
 }
 
 void TaskAccess(void *pvParameters)
@@ -265,6 +276,28 @@ void TaskScreen(void *pvParameters)
   (void)pvParameters;
   // u8g2.begin();
   // oled();
+}
+
+void TaskAccessPoint(void *pvParameters)
+{
+  (void)pvParameters;
+  loopAP();
+}
+
+void TaskSendParams(void *pvParameters){
+  (void)pvParameters;
+  String message = "";
+  if (state_motor1){
+    message += "door";
+  }
+  if (state_motor2){
+    message += "window";
+  }
+  if (state_dimm1){
+    message += "light";
+  }
+  server.send(200, "text/plain", message);
+  vTaskDelay(5000);
 }
 
 void loop()
