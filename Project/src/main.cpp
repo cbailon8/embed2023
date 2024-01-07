@@ -58,10 +58,10 @@ unsigned int beep_success[2] = {1, 1};
 unsigned int beep_failure[2] = {5, 2};
 
 // Movement sensor
-const int trigger1 = 5;
-const int echo1 = 17;
-const int trigger2 = 0;
-const int echo2 = 2;
+const int trigger1 = 21;
+const int echo1 = 19;
+const int trigger2 = 23;
+const int echo2 = 22;
 float duration_us_1, duration_us_2;
 float distance_cm_1, distance_cm_2 = 0;
 char dis_1[10], dis_2[10];
