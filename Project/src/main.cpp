@@ -1,13 +1,10 @@
 #include <Arduino.h>
 #include <Keypad.h>
-#include <BH1750.h>
 #include <OneWire.h>
-#include <DallasTemperature.h>
 #include <U8g2lib.h>
 #include <Wire.h>
 #include <EasyBuzzer.h>
 #include <stdio.h>
-#include <RBDDimmer.h>
 #include "eepromfn.h"
 #include "numtostr.h"
 #include "apwifiesp32.h"
@@ -15,8 +12,6 @@
 #define APP_CPU 1
 #define RAM 4096
 #define NOAFF_CPU tskNO_AFFINITY
-#define ROW_NUM 4
-#define COLUMN_NUM 4
 #define SENSOR_NUM 2
 #define ACTUATOR_NUM 2
 #define SCL 22
@@ -36,51 +31,51 @@ void TaskAccessPoint(void *pvParameters);
 void TaskSendParams(void *pvParameters);
 
 // Keyboard
+const uint8_t ROW_NUM = 4;
+const uint8_t COLUMN_NUM = 4;
 char keys[ROW_NUM][COLUMN_NUM] = {
     {'1', '2', '3', 'A'},
     {'4', '5', '6', 'B'},
     {'7', '8', '9', 'C'},
     {'*', '0', '#', 'D'}};
-byte pin_rows[ROW_NUM] = {36, 39, 34, 35};
-byte pin_column[COLUMN_NUM] = {32, 33, 25, 26};
+uint8_t pin_rows[ROW_NUM] = {15, 2, 0, 4};
+uint8_t pin_column[COLUMN_NUM] = {16, 17, 5, 18};
 Keypad keypad = Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
 char input_pwd[8];
+char contrasena[8] = "1111111";
+int keys_pressed = 0;
 
 // Motors
-int motor1[ACTUATOR_NUM] = {13, 9};
+int motor1[ACTUATOR_NUM] = {26, 27};
 bool state_motor1 = false;
-int motor2[ACTUATOR_NUM] = {10, 11};
+int motor2[ACTUATOR_NUM] = {25, 33};
 bool state_motor2 = false;
 
 // Buzzer
 const int buzzer = 12;
 bool state_alarm = false;
-unsigned int beep_success[6] = {1000, 50, 100, 2, 500, 10};
-unsigned int beep_failure[6] = {500, 50, 100, 2, 500, 10};
-unsigned int frequency = 1000;
-unsigned int onDuration = 50;
-unsigned int offDuration = 100;
-unsigned int beeps = 2;
-unsigned int pauseDuration = 500;
-unsigned int cycles = 10;
+unsigned int beep_success[2] = {1, 1};
+unsigned int beep_failure[2] = {5, 2};
 
 // Movement sensor
-int ultrasonic_1[SENSOR_NUM] = {15, 8};
-int ultrasonic_2[SENSOR_NUM] = {7, 6};
+const int trigger1 = 5;
+const int echo1 = 17;
+const int trigger2 = 0;
+const int echo2 = 2;
 float duration_us_1, duration_us_2;
 float distance_cm_1, distance_cm_2 = 0;
 char dis_1[10], dis_2[10];
 
 // Temperature sensor
+const float ADC_VREF_mV = 3300.0;
+const float ADC_RES = 4096.0;
 const int temp = 14;
-OneWire oneWire(temp);
-DallasTemperature DS18B20(&oneWire);
 float current_temp;
 
 // //Light sensor
 // BH1750 light_sensor;
 
-// Dimmers
+/*// Dimmers
 const int zero_cross = 1;
 const int dimmer1_pwm = 19;
 bool state_dimm1 = false;
@@ -88,6 +83,7 @@ const int dimmer2_pwm = 18;
 bool state_dimm2 = false;
 dimmerLamp dimm1(dimmer1_pwm, zero_cross);
 dimmerLamp dimm2(dimmer2_pwm, zero_cross);
+*/
 
 // Oled
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
@@ -95,56 +91,50 @@ U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
 // Functions
 void read_temp()
 {
-  DS18B20.requestTemperatures();
-  current_temp = DS18B20.getTempCByIndex(0);
-  Serial.print(current_temp);
-  if (current_temp > 25)
+   int adcVal = analogRead(temp);
+  float milivolt = adcVal * (ADC_VREF_mV / ADC_RES);
+  current_temp = milivolt / 10;
+  Serial.println(current_temp);
+  if (current_temp > 25 && !state_motor2)
   {
-    digitalWrite(motor1[0], HIGH);
-    state_motor1 = true;
-    vTaskDelay(5000);
-    digitalWrite(motor1[0], LOW);
-    state_motor1 = true;
+    Serial.println("ON");
+    digitalWrite(motor2[0], HIGH);
+    digitalWrite(motor2[1], LOW);
+    vTaskDelay(1000);
+    digitalWrite(motor2[0], LOW);
+    state_motor2 = true;
   }
-  else if (current_temp < 25)
+  else if (current_temp < 25 && state_motor2)
   {
-    digitalWrite(motor1[1], HIGH);
-    state_motor1 = true;
-    vTaskDelay(5000);
-    digitalWrite(motor1[1], LOW);
-    state_motor1 = true;
-  }
-  vTaskDelay(500);
-}
-
-void read_key()
-{
-  int keys_pressed = 0;
-  char key = keypad.getKey();
-  if (key)
-  {
-    Serial.println(key);
-    while (keys_pressed < 8)
-    {
-      input_pwd[keys_pressed++] = key;
-    }
-    keys_pressed = 0;
+    Serial.println("OFF");
+    digitalWrite(motor2[1], HIGH);
+    digitalWrite(motor2[0], LOW);
+    vTaskDelay(1000);
+    digitalWrite(motor2[1], LOW);
+    state_motor2 = false;
   }
 }
 
 void access_granted()
 {
-  EasyBuzzer.beep(beep_success[0], beep_success[1], beep_success[2], beep_success[3], beep_success[4], beep_success[5]);
+  EasyBuzzer.singleBeep(beep_success[0], beep_success[1]); //, beep_success[2], beep_success[3], beep_success[4], beep_success[5]);
   EasyBuzzer.update();
+  digitalWrite(motor1[0], HIGH);
+  digitalWrite(motor1[1], LOW);
+  delay(1000);
+  digitalWrite(motor1[0], LOW);
+  state_motor1 = true;
+  EasyBuzzer.stopBeep();
 }
 
 void access_denied()
 {
-  EasyBuzzer.beep(beep_failure[0], beep_failure[1], beep_failure[2], beep_failure[3], beep_failure[4], beep_failure[5]);
+  EasyBuzzer.singleBeep(beep_failure[0], beep_failure[1]); //, beep_failure[2], beep_failure[3], beep_failure[4], beep_failure[5]);
   EasyBuzzer.update();
   state_alarm = true;
 }
 
+/*
 void manage_lights()
 {
   if (distance_cm_1 < 10)
@@ -163,21 +153,24 @@ void manage_lights()
   {
     dimm2.setPower(0);
   }
-}
+}*/
 
 void read_distance()
 {
-  digitalWrite(ultrasonic_1[0], HIGH);
-  digitalWrite(ultrasonic_2[0], HIGH);
-  vTaskDelay(1);
-  digitalWrite(ultrasonic_1[0], LOW);
-  digitalWrite(ultrasonic_2[0], LOW);
-  duration_us_1 = pulseIn(ultrasonic_1[1], HIGH);
+  digitalWrite(trigger1, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigger1, LOW);
+  duration_us_1 = pulseIn(echo1, HIGH);
   distance_cm_1 = 0.017 * duration_us_1;
-  duration_us_2 = pulseIn(ultrasonic_2[1], HIGH);
+  digitalWrite(trigger2, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigger2, LOW);
+  duration_us_2 = pulseIn(echo2, HIGH);
   distance_cm_2 = 0.017 * duration_us_2;
-  Serial.print(distance_cm_1);
-  Serial.print(distance_cm_2);
+  Serial.print("Distancia 1 ");
+  Serial.println(distance_cm_1);
+  Serial.print("Distancia 2 ");
+  Serial.println(distance_cm_2);
   ftoa(distance_cm_1, dis_1, 2);
   ftoa(distance_cm_2, dis_2, 2);
   vTaskDelay(500);
@@ -215,17 +208,32 @@ void oled()
   vTaskDelay(500);
 }
 
-void check_pwd()
+void read_key()
 {
-  char pwd[] = "";
-  int comp = strcmp(pwd, input_pwd);
-  if (comp == 0)
+  char key = keypad.getKey();
+  if (key)
   {
-    access_granted();
+    input_pwd[keys_pressed] = key;
+    Serial.println(key);
+    keys_pressed = keys_pressed + 1;
   }
-  else
+
+  if (keys_pressed >= 7)
   {
-    access_denied();
+    Serial.println("Contrasena:");
+    Serial.println(input_pwd);
+    if (strcmp(contrasena, input_pwd) == 0)
+    {
+      Serial.println("Acceso permitido");
+      access_granted();
+      keys_pressed = 0;
+    }
+    else
+    {
+      Serial.println("Acceso denegado");
+      access_denied();
+      keys_pressed = 0;
+    }
   }
 }
 
@@ -246,8 +254,10 @@ void TaskAccess(void *pvParameters)
 {
   (void)pvParameters;
   Serial.begin(9600);
+  pinMode(motor1[0], OUTPUT);
+  pinMode(motor1[1], OUTPUT);
+  EasyBuzzer.setPin(buzzer);
   read_key();
-  check_pwd();
   EasyBuzzer.setPin(buzzer);
 }
 
@@ -255,20 +265,20 @@ void TaskTemp(void *pvParameters)
 {
   (void)pvParameters;
   Serial.begin(9600);
-  // DS18B20.begin();
-  // read_temp();
+  pinMode(motor2[0], OUTPUT);
+  pinMode(motor2[1], OUTPUT);
+  read_temp();
 }
 
 void TaskLights(void *pvParameters)
 {
   (void)pvParameters;
   Serial.begin(9600);
-  pinMode(ultrasonic_1[0], OUTPUT);
-  pinMode(ultrasonic_1[1], INPUT);
-  pinMode(ultrasonic_2[0], OUTPUT);
-  pinMode(ultrasonic_2[1], INPUT);
+  pinMode(trigger1, OUTPUT);
+  pinMode(echo1, INPUT);
+  pinMode(trigger2, OUTPUT);
+  pinMode(echo2, INPUT);
   read_distance();
-  manage_lights();
 }
 
 void TaskScreen(void *pvParameters)
@@ -293,9 +303,9 @@ void TaskSendParams(void *pvParameters){
   if (state_motor2){
     message += "window";
   }
-  if (state_dimm1){
+  /*if (state_dimm1){
     message += "light";
-  }
+  }*/
   server.send(200, "text/plain", message);
   vTaskDelay(5000);
 }
