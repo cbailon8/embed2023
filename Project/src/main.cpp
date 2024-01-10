@@ -1,16 +1,17 @@
 #include <Arduino.h>
 #include <Keypad.h>
-#include <OneWire.h>
-#include <U8g2lib.h>
-#include <Wire.h>
+#include <SPI.h>
+#include <WiFi.h>
+#include <WebServer.h>
 #include <EasyBuzzer.h>
 #include <stdio.h>
 #include "eepromfn.h"
 #include "numtostr.h"
-#include "apwifiesp32.h"
+#include <U8g2lib.h>
+// #include "apwifiesp32.h"
 #define PRO_CPU 0
 #define APP_CPU 1
-#define RAM 4096
+#define RAM 16384
 #define NOAFF_CPU tskNO_AFFINITY
 #define SENSOR_NUM 2
 #define ACTUATOR_NUM 2
@@ -19,8 +20,11 @@
 #define PWD_ADDR 16
 
 // Connection
-String ssid = "12345678";
-String password = "12345678";
+const char *ssid = "1234";
+const char *password = "5678";
+String ssidw = "1234";
+String passwordw = "5678";
+WebServer server(80);
 
 // Tasks
 void TaskLights(void *pvParameters);
@@ -58,10 +62,10 @@ unsigned int beep_success[2] = {1, 1};
 unsigned int beep_failure[2] = {5, 2};
 
 // Movement sensor
-const int trigger1 = 5;
-const int echo1 = 17;
-const int trigger2 = 0;
-const int echo2 = 2;
+const int trigger1 = 21;
+const int echo1 = 19;
+const int trigger2 = 23;
+const int echo2 = 22;
 float duration_us_1, duration_us_2;
 float distance_cm_1, distance_cm_2 = 0;
 char dis_1[10], dis_2[10];
@@ -75,25 +79,28 @@ float current_temp;
 // //Light sensor
 // BH1750 light_sensor;
 
-/*// Dimmers
-const int zero_cross = 1;
-const int dimmer1_pwm = 19;
-bool state_dimm1 = false;
-const int dimmer2_pwm = 18;
-bool state_dimm2 = false;
-dimmerLamp dimm1(dimmer1_pwm, zero_cross);
-dimmerLamp dimm2(dimmer2_pwm, zero_cross);
-*/
+// Lights
+// const int zero_cross = 1;
+// const int dimmer1_pwm = 19;
+bool state_led1 = false;
+// const int dimmer2_pwm = 18;
+bool state_led2 = false;
+// dimmerLamp dimm1(dimmer1_pwm, zero_cross);
+// dimmerLamp dimm2(dimmer2_pwm, zero_cross);
+const int led1 = 13;
+const int led2 = 32;
 
 // Oled
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
+// U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
 
 // Functions
+
 void read_temp()
 {
-   int adcVal = analogRead(temp);
+  int adcVal = analogRead(temp);
   float milivolt = adcVal * (ADC_VREF_mV / ADC_RES);
   current_temp = milivolt / 10;
+  Serial.print("Temperatura: ");
   Serial.println(current_temp);
   if (current_temp > 25 && !state_motor2)
   {
@@ -113,47 +120,50 @@ void read_temp()
     digitalWrite(motor2[1], LOW);
     state_motor2 = false;
   }
-}
+};
 
 void access_granted()
 {
-  EasyBuzzer.singleBeep(beep_success[0], beep_success[1]); //, beep_success[2], beep_success[3], beep_success[4], beep_success[5]);
+  EasyBuzzer.singleBeep(beep_success[0], beep_success[1]);
   EasyBuzzer.update();
   digitalWrite(motor1[0], HIGH);
   digitalWrite(motor1[1], LOW);
-  delay(1000);
+  vTaskDelay(1000);
   digitalWrite(motor1[0], LOW);
   state_motor1 = true;
   EasyBuzzer.stopBeep();
-}
+};
 
 void access_denied()
 {
-  EasyBuzzer.singleBeep(beep_failure[0], beep_failure[1]); //, beep_failure[2], beep_failure[3], beep_failure[4], beep_failure[5]);
+  EasyBuzzer.singleBeep(beep_failure[0], beep_failure[1]);
   EasyBuzzer.update();
   state_alarm = true;
-}
+};
 
-/*
 void manage_lights()
 {
   if (distance_cm_1 < 10)
   {
-    dimm1.setPower(80);
+    digitalWrite(led1, HIGH);
+    state_led1 = true;
   }
   else
   {
-    dimm1.setPower(0);
+    digitalWrite(led1, LOW);
+    state_led1 = false;
   }
   if (distance_cm_2 < 10)
   {
-    dimm2.setPower(80);
+    digitalWrite(led2, HIGH);
+    state_led2 = true;
   }
   else
   {
-    dimm2.setPower(0);
+    digitalWrite(led2, LOW);
+    state_led2 = false;
   }
-}*/
+}
 
 void read_distance()
 {
@@ -167,16 +177,15 @@ void read_distance()
   digitalWrite(trigger2, LOW);
   duration_us_2 = pulseIn(echo2, HIGH);
   distance_cm_2 = 0.017 * duration_us_2;
-  Serial.print("Distancia 1 ");
+  Serial.print("Distancia 1: ");
   Serial.println(distance_cm_1);
-  Serial.print("Distancia 2 ");
+  Serial.print("Distancia 2: ");
   Serial.println(distance_cm_2);
   ftoa(distance_cm_1, dis_1, 2);
   ftoa(distance_cm_2, dis_2, 2);
-  vTaskDelay(500);
 }
 
-void oled()
+/*void oled()
 {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_tiny5_tf);
@@ -206,7 +215,7 @@ void oled()
   }
   u8g2.sendBuffer();
   vTaskDelay(500);
-}
+}*/
 
 void read_key()
 {
@@ -237,15 +246,50 @@ void read_key()
   }
 }
 
+void handleRoot()
+{
+  String html = "<html><body>";
+  html += "<form method='POST' action='/home'>";
+  html += "Luces: <input type='text' name='light'><br>";
+  html += "Puerta: <input type='text' name='door'><br>";
+  html += "Persianas: <input type='text' name='window'><br>";
+  html += "<input type='submit' value='Enviar'>";
+  html += "</form></body></html>";
+  server.send(200, "text/html", html);
+}
+
+void handleHome()
+{
+  String light = server.arg("light");
+  String door = server.arg("door");
+  String window = server.arg("window");
+}
+
+void initAP(const char *apSsid, const char *apPassword)
+{ // Nombre de la red Wi-Fi y  Contraseña creada por el ESP32
+  Serial.begin(115200);
+
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(apSsid, apPassword);
+
+  server.on("/", handleRoot);
+  server.on("/home", handleHome);
+
+  server.begin();
+  Serial.print("Ip de esp32...");
+  Serial.println(WiFi.softAPIP());
+  Serial.println("Servidor web iniciado");
+}
+
 void setup()
 {
-  EEPROM.begin(512);
-  writeStringEEPROM("ABC123", PWD_ADDR);
-  initAP(ssid.c_str(), password.c_str());
+  // EEPROM.begin(512);
+  // writeStringEEPROM("ABC123", PWD_ADDR);
+  initAP(ssid, password);
   xTaskCreatePinnedToCore(TaskAccess, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskLights, "TaskLights", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskTemp, "TaskTemp", RAM, NULL, 1, NULL, APP_CPU);
-  xTaskCreatePinnedToCore(TaskScreen, "TaskScreen", RAM, NULL, 1, NULL, APP_CPU);
+  // xTaskCreatePinnedToCore(TaskScreen, "TaskScreen", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskAccessPoint, "TaskAccessPoint", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskSendParams, "TaskSendParams", RAM, NULL, 1, NULL, APP_CPU);
 }
@@ -253,32 +297,45 @@ void setup()
 void TaskAccess(void *pvParameters)
 {
   (void)pvParameters;
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(motor1[0], OUTPUT);
   pinMode(motor1[1], OUTPUT);
   EasyBuzzer.setPin(buzzer);
-  read_key();
-  EasyBuzzer.setPin(buzzer);
+  while (1)
+  {
+    read_key();
+  }
 }
 
 void TaskTemp(void *pvParameters)
 {
   (void)pvParameters;
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(motor2[0], OUTPUT);
   pinMode(motor2[1], OUTPUT);
-  read_temp();
+  while (1)
+  {
+    read_temp();
+    vTaskDelay(60 * 1000);
+  }
 }
 
 void TaskLights(void *pvParameters)
 {
   (void)pvParameters;
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(trigger1, OUTPUT);
   pinMode(echo1, INPUT);
   pinMode(trigger2, OUTPUT);
   pinMode(echo2, INPUT);
-  read_distance();
+  pinMode(led1, OUTPUT);
+  pinMode(led2, OUTPUT);
+  while (1)
+  {
+    read_distance();
+    manage_lights();
+    vTaskDelay(30 * 1000);
+  }
 }
 
 void TaskScreen(void *pvParameters)
@@ -291,23 +348,34 @@ void TaskScreen(void *pvParameters)
 void TaskAccessPoint(void *pvParameters)
 {
   (void)pvParameters;
-  loopAP();
+  while (1)
+  {
+    server.handleClient();
+  }
 }
 
-void TaskSendParams(void *pvParameters){
+void TaskSendParams(void *pvParameters)
+{
   (void)pvParameters;
   String message = "";
-  if (state_motor1){
-    message += "door";
+  while (1)
+  {
+    if (state_motor1)
+    {
+      message += "door";
+    }
+    if (state_motor2)
+    {
+      message += "window";
+    }
+    if (state_led1 || state_led2)
+    {
+      message += "light";
+    }
+    server.send(200, "text/plain", message);
+    message = "";
   }
-  if (state_motor2){
-    message += "window";
-  }
-  /*if (state_dimm1){
-    message += "light";
-  }*/
-  server.send(200, "text/plain", message);
-  vTaskDelay(5000);
+  vTaskDelay(60 * 1000);
 }
 
 void loop()
