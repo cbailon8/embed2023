@@ -8,7 +8,7 @@
 #include "eepromfn.h"
 #include "numtostr.h"
 #include <U8g2lib.h>
-// #include "apwifiesp32.h"
+#include <UbidotsEsp32Mqtt.h>
 #define PRO_CPU 0
 #define APP_CPU 1
 #define RAM 16384
@@ -33,6 +33,19 @@ void TaskAccess(void *pvParameters);
 void TaskScreen(void *pvParameters);
 void TaskAccessPoint(void *pvParameters);
 void TaskSendParams(void *pvParameters);
+void TaskUbidots(void *pvParameters);
+
+//Ubidots
+const char *token = "BBUS-OpLOQiKcJwiFKD8bqmyRD4qlU3pYgb";
+const char *device = "esp32";
+const char *var1 = "temperature";
+const char *var2 = "door";
+const char *var3 = "window";
+const char *var4 = "light1";
+const char *var5 = "light2";
+const int publish_frequency = 60*1000;
+unsigned long timer;
+Ubidots ubidots(token);
 
 // Keyboard
 const uint8_t ROW_NUM = 4;
@@ -94,6 +107,10 @@ const int led2 = 32;
 // U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
 
 // Functions
+
+void payload(){
+  
+}
 
 void read_temp()
 {
@@ -283,21 +300,22 @@ void initAP(const char *apSsid, const char *apPassword)
 
 void setup()
 {
+  Serial.begin(115200);
   // EEPROM.begin(512);
   // writeStringEEPROM("ABC123", PWD_ADDR);
   initAP(ssid, password);
-  xTaskCreatePinnedToCore(TaskAccess, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskAccess, "TaskAccess", RAM, NULL, 2, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskLights, "TaskLights", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskTemp, "TaskTemp", RAM, NULL, 1, NULL, APP_CPU);
   // xTaskCreatePinnedToCore(TaskScreen, "TaskScreen", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskAccessPoint, "TaskAccessPoint", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskSendParams, "TaskSendParams", RAM, NULL, 1, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskUbidots, "TaskUbidots", RAM, NULL, 1, NULL, APP_CPU);
 }
 
 void TaskAccess(void *pvParameters)
 {
   (void)pvParameters;
-  Serial.begin(115200);
   pinMode(motor1[0], OUTPUT);
   pinMode(motor1[1], OUTPUT);
   EasyBuzzer.setPin(buzzer);
@@ -310,7 +328,6 @@ void TaskAccess(void *pvParameters)
 void TaskTemp(void *pvParameters)
 {
   (void)pvParameters;
-  Serial.begin(115200);
   pinMode(motor2[0], OUTPUT);
   pinMode(motor2[1], OUTPUT);
   while (1)
@@ -323,7 +340,6 @@ void TaskTemp(void *pvParameters)
 void TaskLights(void *pvParameters)
 {
   (void)pvParameters;
-  Serial.begin(115200);
   pinMode(trigger1, OUTPUT);
   pinMode(echo1, INPUT);
   pinMode(trigger2, OUTPUT);
@@ -335,6 +351,30 @@ void TaskLights(void *pvParameters)
     read_distance();
     manage_lights();
     vTaskDelay(30 * 1000);
+  }
+}
+
+void TaskUbidots(void *pvParameters){
+  (void)pvParameters;
+  ubidots.connectToWifi("R12C","12345678");
+  ubidots.setup();
+  ubidots.reconnect();
+  timer = millis();
+  while(1){
+    if (!ubidots.connected()){
+      ubidots.reconnect();
+    }
+    unsigned long now = millis()-timer;
+    if (abs(int(now)) > publish_frequency){
+      ubidots.add(var1,current_temp);
+      ubidots.add(var2,state_motor1);
+      ubidots.add(var3,state_motor2);
+      ubidots.add(var4,state_led1);
+      ubidots.add(var5,state_led2);
+      ubidots.publish(device);
+      timer = millis();
+    }
+    ubidots.loop();
   }
 }
 
