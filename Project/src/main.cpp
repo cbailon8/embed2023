@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include "eepromfn.h"
 #include "numtostr.h"
-#include <U8g2lib.h>
 #include <UbidotsEsp32Mqtt.h>
 #define PRO_CPU 0
 #define APP_CPU 1
@@ -20,10 +19,8 @@
 #define PWD_ADDR 16
 
 // Connection
-const char *ssid = "1234";
-const char *password = "5678";
-String ssidw = "1234";
-String passwordw = "5678";
+const char *ssid = "HOME-ESP32";
+const char *password = "12345678";
 WebServer server(80);
 
 // Tasks
@@ -35,7 +32,7 @@ void TaskAccessPoint(void *pvParameters);
 void TaskSendParams(void *pvParameters);
 void TaskUbidots(void *pvParameters);
 
-//Ubidots
+// Ubidots
 const char *token = "BBUS-OpLOQiKcJwiFKD8bqmyRD4qlU3pYgb";
 const char *device = "esp32";
 const char *var1 = "temperature";
@@ -43,7 +40,7 @@ const char *var2 = "door";
 const char *var3 = "window";
 const char *var4 = "light1";
 const char *var5 = "light2";
-const int publish_frequency = 60*1000;
+const int publish_frequency = 60 * 1000;
 unsigned long timer;
 Ubidots ubidots(token);
 
@@ -75,10 +72,10 @@ unsigned int beep_success[2] = {1, 1};
 unsigned int beep_failure[2] = {5, 2};
 
 // Movement sensor
-const int trigger1 = 21;
-const int echo1 = 19;
-const int trigger2 = 23;
-const int echo2 = 22;
+const int trigger2 = 21;
+const int echo2 = 19;
+const int trigger1 = 23;
+const int echo1 = 22;
 float duration_us_1, duration_us_2;
 float distance_cm_1, distance_cm_2 = 0;
 char dis_1[10], dis_2[10];
@@ -89,27 +86,16 @@ const float ADC_RES = 4096.0;
 const int temp = 14;
 float current_temp;
 
-// //Light sensor
-// BH1750 light_sensor;
-
 // Lights
-// const int zero_cross = 1;
-// const int dimmer1_pwm = 19;
 bool state_led1 = false;
-// const int dimmer2_pwm = 18;
 bool state_led2 = false;
-// dimmerLamp dimm1(dimmer1_pwm, zero_cross);
-// dimmerLamp dimm2(dimmer2_pwm, zero_cross);
 const int led1 = 13;
 const int led2 = 32;
 
-// Oled
-// U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
-
 // Functions
 
-void payload(){
-  
+void payload()
+{
 }
 
 void read_temp()
@@ -124,7 +110,7 @@ void read_temp()
     Serial.println("ON");
     digitalWrite(motor2[0], HIGH);
     digitalWrite(motor2[1], LOW);
-    vTaskDelay(1000);
+    vTaskDelay(3 * 1000);
     digitalWrite(motor2[0], LOW);
     state_motor2 = true;
   }
@@ -133,7 +119,7 @@ void read_temp()
     Serial.println("OFF");
     digitalWrite(motor2[1], HIGH);
     digitalWrite(motor2[0], LOW);
-    vTaskDelay(1000);
+    vTaskDelay(3 * 1000);
     digitalWrite(motor2[1], LOW);
     state_motor2 = false;
   }
@@ -145,10 +131,11 @@ void access_granted()
   EasyBuzzer.update();
   digitalWrite(motor1[0], HIGH);
   digitalWrite(motor1[1], LOW);
-  vTaskDelay(1000);
+  vTaskDelay(3 * 1000);
   digitalWrite(motor1[0], LOW);
   state_motor1 = true;
   EasyBuzzer.stopBeep();
+  state_motor1 = false;
 };
 
 void access_denied()
@@ -163,21 +150,25 @@ void manage_lights()
   if (distance_cm_1 < 10)
   {
     digitalWrite(led1, HIGH);
+    Serial.println("LED 1 ON");
     state_led1 = true;
   }
   else
   {
     digitalWrite(led1, LOW);
+    Serial.println("LED 1 OFF");
     state_led1 = false;
   }
   if (distance_cm_2 < 10)
   {
     digitalWrite(led2, HIGH);
+    Serial.println("LED 2 ON");
     state_led2 = true;
   }
   else
   {
     digitalWrite(led2, LOW);
+    Serial.println("LED 2 OFF");
     state_led2 = false;
   }
 }
@@ -201,38 +192,6 @@ void read_distance()
   ftoa(distance_cm_1, dis_1, 2);
   ftoa(distance_cm_2, dis_2, 2);
 }
-
-/*void oled()
-{
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_tiny5_tf);
-  u8g2.drawStr(0, 6, "Distancia:");
-  u8g2.drawStr(20, 6, dis_1);
-  u8g2.drawStr(0, 12, "Distancia:");
-  u8g2.drawStr(20, 12, dis_2);
-  if (state_alarm)
-  {
-    u8g2.drawStr(0, 18, "¡Alarma activada!");
-  }
-  if (state_motor1)
-  {
-    u8g2.drawStr(0, 24, "Puerta: \"ON\"");
-  }
-  else
-  {
-    u8g2.drawStr(0, 24, "Puerta: \"OFF\"");
-  }
-  if (state_motor2)
-  {
-    u8g2.drawStr(0, 30, "Persiana: \"ON\"");
-  }
-  else
-  {
-    u8g2.drawStr(0, 24, "Persiana: \"OFF\"");
-  }
-  u8g2.sendBuffer();
-  vTaskDelay(500);
-}*/
 
 void read_key()
 {
@@ -277,9 +236,45 @@ void handleRoot()
 
 void handleHome()
 {
-  String light = server.arg("light");
-  String door = server.arg("door");
-  String window = server.arg("window");
+  if (strcmp("true", server.arg("light").c_str()) == 0)
+  {
+    Serial.println("Luz");
+    state_led1 = true;
+    state_led2 = true;
+    digitalWrite(led1, HIGH);
+    digitalWrite(led2, HIGH);
+  }
+  else
+  {
+    state_led1 = false;
+    state_led2 = false;
+    digitalWrite(led1, LOW);
+    digitalWrite(led2, LOW);
+  }
+  if (strcmp("true", server.arg("door").c_str()) == 0)
+  {
+    Serial.println("Puerta");
+    access_granted();
+  }
+  if (strcmp("true", server.arg("window").c_str()) == 0)
+  {
+    Serial.println("Ventana");
+    Serial.println("ON");
+    digitalWrite(motor2[0], HIGH);
+    digitalWrite(motor2[1], LOW);
+    vTaskDelay(3 * 1000);
+    digitalWrite(motor2[0], LOW);
+    state_motor2 = true;
+  }
+  else if (strcmp("false", server.arg("window").c_str()) == 0)
+  {
+    Serial.println("OFF");
+    digitalWrite(motor2[1], HIGH);
+    digitalWrite(motor2[0], LOW);
+    vTaskDelay(3 * 1000);
+    digitalWrite(motor2[1], LOW);
+    state_motor2 = false;
+  }
 }
 
 void initAP(const char *apSsid, const char *apPassword)
@@ -301,13 +296,10 @@ void initAP(const char *apSsid, const char *apPassword)
 void setup()
 {
   Serial.begin(115200);
-  // EEPROM.begin(512);
-  // writeStringEEPROM("ABC123", PWD_ADDR);
   initAP(ssid, password);
-  xTaskCreatePinnedToCore(TaskAccess, "TaskAccess", RAM, NULL, 2, NULL, APP_CPU);
+  xTaskCreatePinnedToCore(TaskAccess, "TaskAccess", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskLights, "TaskLights", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskTemp, "TaskTemp", RAM, NULL, 1, NULL, APP_CPU);
-  // xTaskCreatePinnedToCore(TaskScreen, "TaskScreen", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskAccessPoint, "TaskAccessPoint", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskSendParams, "TaskSendParams", RAM, NULL, 1, NULL, APP_CPU);
   xTaskCreatePinnedToCore(TaskUbidots, "TaskUbidots", RAM, NULL, 1, NULL, APP_CPU);
@@ -333,7 +325,7 @@ void TaskTemp(void *pvParameters)
   while (1)
   {
     read_temp();
-    vTaskDelay(60 * 1000);
+    vTaskDelay(30 * 1000);
   }
 }
 
@@ -350,39 +342,36 @@ void TaskLights(void *pvParameters)
   {
     read_distance();
     manage_lights();
-    vTaskDelay(30 * 1000);
+    vTaskDelay(10 * 1000);
   }
 }
 
-void TaskUbidots(void *pvParameters){
+void TaskUbidots(void *pvParameters)
+{
   (void)pvParameters;
-  ubidots.connectToWifi("R12C","12345678");
+  ubidots.connectToWifi("R12C", "12345678");
   ubidots.setup();
   ubidots.reconnect();
   timer = millis();
-  while(1){
-    if (!ubidots.connected()){
+  while (1)
+  {
+    if (!ubidots.connected())
+    {
       ubidots.reconnect();
     }
-    unsigned long now = millis()-timer;
-    if (abs(int(now)) > publish_frequency){
-      ubidots.add(var1,current_temp);
-      ubidots.add(var2,state_motor1);
-      ubidots.add(var3,state_motor2);
-      ubidots.add(var4,state_led1);
-      ubidots.add(var5,state_led2);
+    unsigned long now = millis() - timer;
+    if (abs(int(now)) > publish_frequency)
+    {
+      ubidots.add(var1, current_temp);
+      ubidots.add(var2, state_motor1);
+      ubidots.add(var3, state_motor2);
+      ubidots.add(var4, state_led1);
+      ubidots.add(var5, state_led2);
       ubidots.publish(device);
       timer = millis();
     }
     ubidots.loop();
   }
-}
-
-void TaskScreen(void *pvParameters)
-{
-  (void)pvParameters;
-  // u8g2.begin();
-  // oled();
 }
 
 void TaskAccessPoint(void *pvParameters)
@@ -415,7 +404,7 @@ void TaskSendParams(void *pvParameters)
     server.send(200, "text/plain", message);
     message = "";
   }
-  vTaskDelay(60 * 1000);
+  vTaskDelay(20 * 1000);
 }
 
 void loop()
